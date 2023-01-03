@@ -8,6 +8,7 @@ from flwr.common import parameters_to_ndarrays
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+
 torch.manual_seed(0)
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self,cid, net, trainloader,optimizer):
@@ -17,6 +18,7 @@ class FlowerClient(fl.client.NumPyClient):
         # client net
         self.net = net
         # train iterator
+        self.trainloader = trainloader
         self.trainiter = iter(trainloader)
         # optimizer (Adamm, etc.)
         self.optimizer = optimizer
@@ -36,10 +38,14 @@ class FlowerClient(fl.client.NumPyClient):
         # Read values from config
         server_round = config['server_round']
         # get batch
+        try:
+            X = next(self.trainiter)
+        except StopIteration:
+            self.trainiter = iter(self.trainloader)
+            X = next(self.trainiter)
         X = next(self.trainiter)
         outputs = self.net(X.float())
         self.outputs = outputs
-        
         return [x for x in outputs.detach().numpy()], 1, {}
 
     def evaluate(self, parameters, config):
@@ -64,12 +70,12 @@ if __name__ == "__main__":
         data = pickle.load(f)
     
     dataloader = data['data'][int(args.cid)]
-    model = model.Net(dataloader.dataset.X.shape[-1], 4)
+    model = model.Net(dataloader.dataset.X.shape[-1], 6)
 
     fl.client.start_numpy_client(
         server_address="127.0.0.1:8080",
         client=FlowerClient(
-            cid=str(args.cid), net = model, trainloader=dataloader, optimizer = Adam(model.parameters(), lr=1e-5))
+            cid=str(args.cid), net = model, trainloader=dataloader, optimizer = Adam(model.parameters(), lr=1e-2))
     )
     
 
