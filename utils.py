@@ -61,7 +61,7 @@ def load_datasets(data_path,batch_size):
     return {'data': [comp_dl,cat_dl,brand_dl], 'labels': targets}
 
 if __name__ == "__main__":
-    d = load_datasets("../data/train_data.csv", batch_size=64)
+    d = load_datasets("../data/train_data.csv", batch_size=32)
     import pickle
     with open('data.pt','wb') as outfile:
         pickle.dump(d, outfile)
