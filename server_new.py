@@ -7,9 +7,9 @@ import flwr as fl
 
 
 if __name__ == "__main__":
-    BATCH_SIZE = 64
+    BATCH_SIZE = 32
     NUM_CLIENTS = 3
-    NUM_ROUNDS = 60
+    NUM_ROUNDS = 30000
 
     with open('data.pt','rb') as f:
         DATA = pickle.load(f)
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     strategy = stgy.SplitVFL(
         num_clients=NUM_CLIENTS, 
         batch_size=BATCH_SIZE, 
-        dim_input= 12, # 4 outputs for three clients
+        dim_input= 18, # 4 outputs for three clients
         labels = DATA['labels']
     )
 
