@@ -2,3 +2,5 @@ venv/
 
 data.pt
 outputs_*
+
+accs.pt
