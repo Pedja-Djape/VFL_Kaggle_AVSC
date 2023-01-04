@@ -9,7 +9,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 
-torch.manual_seed(0)
+
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self,cid, net, trainloader,optimizer):
         super(FlowerClient,self).__init__()
@@ -43,7 +43,6 @@ class FlowerClient(fl.client.NumPyClient):
         except StopIteration:
             self.trainiter = iter(self.trainloader)
             X = next(self.trainiter)
-        X = next(self.trainiter)
         outputs = self.net(X.float())
         self.outputs = outputs
         return [x for x in outputs.detach().numpy()], 1, {}
@@ -70,6 +69,8 @@ if __name__ == "__main__":
         data = pickle.load(f)
     
     dataloader = data['data'][int(args.cid)]
+    
+    torch.manual_seed(0)
     model = model.Net(dataloader.dataset.X.shape[-1], 6)
 
     fl.client.start_numpy_client(
