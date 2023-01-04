@@ -59,13 +59,15 @@ def load_datasets(data_path,batch_size):
         shuffle=False
     )
 
-    return {'data': [comp_dl,cat_dl,brand_dl], 'labels': targets}
+    return {'data': [comp_dl,cat_dl,brand_dl], 'labels': targets, 'batch_size': batch_size}
 
 def save_data(data_path,batch_size,outfile):
     data = load_datasets(
         data_path=data_path, 
         batch_size=batch_size
     )
-    with open('data.pt','wb') as f:
-        dump(data, outfile)
+    with open(outfile,'wb') as f:
+        dump(data, f)
+    
+    return data
 
