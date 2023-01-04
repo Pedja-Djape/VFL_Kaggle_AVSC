@@ -44,17 +44,17 @@ def load_datasets(data_path,batch_size):
     brand_ds = df[brand_cols].copy()
     
     comp_dl = DataLoader(
-        dataset=ShoppersDataset(df[comp_cols].copy().to_numpy()),
+        dataset=ShoppersDataset(comp_ds.to_numpy()),
         batch_size=batch_size,
         shuffle=False
     )
     cat_dl = DataLoader(
-        dataset=ShoppersDataset(df[cat_cols].copy().to_numpy()),
+        dataset=ShoppersDataset(cat_ds.to_numpy()),
         batch_size=batch_size,
         shuffle=False
     )
     brand_dl = DataLoader(
-        dataset=ShoppersDataset(df[brand_cols].copy().to_numpy()),
+        dataset=ShoppersDataset(brand_ds.to_numpy()),
         batch_size=batch_size,
         shuffle=False
     )
