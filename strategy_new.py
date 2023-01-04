@@ -26,6 +26,9 @@ from torch import optim
 from torch.nn import BCELoss
 import torch
 
+from pickle import dump
+accs = []
+
 torch.manual_seed(0)
 def get_parameters(net) -> List[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
@@ -40,6 +43,8 @@ class SplitVFL(Strategy):
         self.lr = lr
         self.criterion = BCELoss()
         self.labels = torch.tensor(labels)
+        self.lower_label_idx = 0
+        self.num_correct = 0
 
         self.model = None
         self.client_tensors = None
@@ -73,7 +78,8 @@ class SplitVFL(Strategy):
         # return list of tuples of client and fit instructions
         # fit instructions are just global mode parameters and config.
         return [ (client, fit_ins) for client in clients]
-    
+
+    # below works for clients sending one batch at a time
     def __convert_results_to_tensor(self,
         results: List[Tuple[ClientProxy, FitRes]],
         ):
@@ -110,18 +116,41 @@ class SplitVFL(Strategy):
         
         gbl_model_input = self.__convert_results_to_tensor(results=results)
         gbl_model_output = self.model(gbl_model_input)
-        idx = self.batch_size * server_round
+
+        idx_u = None
+        if self.lower_label_idx < len(self.labels):
+            if len(self.labels) - self.lower_label_idx < self.batch_size:
+                idx_u = len(self.labels)
+            else:
+                idx_u = self.lower_label_idx + self.batch_size
+        else:
+            self.lower_label_idx = 0
+            idx_u = self.lower_label_idx + self.batch_size
+
+            global accs
+            accs.append(self.num_correct / len(self.labels))
+            self.num_correct = 0
+            with open('accs.pt','wb') as f:
+                dump(accs, f)
+
         self.optim.zero_grad()
         loss = self.criterion(
             gbl_model_output,
-            self.labels[idx:idx+self.batch_size].float()
+            self.labels[
+                self.lower_label_idx : idx_u
+            ].float()
         )
         loss.backward()
         self.optim.step()
         num_correct = (
-                torch.round(gbl_model_output) == self.labels[idx:idx+self.batch_size] 
+                torch.round(gbl_model_output) == self.labels[self.lower_label_idx : idx_u] 
             ).float().sum().squeeze().item()
-        print(f"\n\n\n\n{num_correct}\n\n\n")
+
+        self.num_correct += num_correct
+
+        self.lower_label_idx += self.batch_size
+        
+        print(f'Accuracy: {num_correct / len(gbl_model_input)}, \tnum samples: {len(gbl_model_input)}')
         return (ndarrays_to_parameters(
             get_parameters(self.model)
         ), {'loss': str(loss.item()), })
