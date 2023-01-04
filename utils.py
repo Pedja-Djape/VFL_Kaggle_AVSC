@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader,Dataset,random_split
 import torch
 import pandas as pd
 import numpy as np 
+from pickle import dump
 
 pd.set_option('display.max_columns', None)
 torch.manual_seed(0)
@@ -60,9 +61,11 @@ def load_datasets(data_path,batch_size):
 
     return {'data': [comp_dl,cat_dl,brand_dl], 'labels': targets}
 
-if __name__ == "__main__":
-    d = load_datasets("../data/train_data.csv", batch_size=32)
-    import pickle
-    with open('data.pt','wb') as outfile:
-        pickle.dump(d, outfile)
-    
+def save_data(data_path,batch_size,outfile):
+    data = load_datasets(
+        data_path=data_path, 
+        batch_size=batch_size
+    )
+    with open('data.pt','wb') as f:
+        dump(data, outfile)
+
