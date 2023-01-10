@@ -32,11 +32,11 @@ def create_train_test(df,cols, train_index, test_index, batch_size):
 def load_datasets(data_path,batch_size):
     df = pd.read_csv(data_path)
 
-    targets = df['repeater']
+    # targets = df['repeater']
 
     train_index, test_index = train_test_split(df.index.values,test_size=0.1,shuffle=False)
     # treat labels as dataloaders
-    train_labels_1, test_labels_1 = create_train_test(
+    train_labels, test_labels = create_train_test(
         df=df, cols=['repeater'], train_index=train_index, test_index=test_index, batch_size=batch_size
     )
 
@@ -65,9 +65,11 @@ def load_datasets(data_path,batch_size):
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
 
     
-    train_labels = targets.loc[train_index].values.reshape((-1,1))
-    test_labels  = targets.loc[test_index ].values.reshape((-1,1))
+    # train_labels = targets.loc[train_index].values.reshape((-1,1))
+    # test_labels  = targets.loc[test_index ].values.reshape((-1,1))
 
+    # assert(np.array_equal(train_labels, train_labels_1.dataset.X))
+    # assert(np.array_equal(test_labels, test_labels_1.dataset.X))
 
     return {
         'data': {
@@ -93,5 +95,4 @@ if __name__ == "__main__":
     outfile = './data.pt'
 
     DATA = save_data(data_path='../data/train_data.csv', batch_size=BATCH_SIZE,outfile=outfile)
-    
     pass
