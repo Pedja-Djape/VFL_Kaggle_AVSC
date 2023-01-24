@@ -7,6 +7,14 @@ from pickle import dump
 
 
 class ShoppersDataset(Dataset):
+    """
+        The class used to represent a given client's data set in VFL (no labels).
+
+        Attributes
+        __________
+        X: numpy.ndarray
+            A numppy array representing client's dataset. Each row represents a consumer's features.
+        """
     def __init__(self,X):
         self.X = X
     
@@ -17,6 +25,25 @@ class ShoppersDataset(Dataset):
         return self.X[index,:]
 
 def create_train_test(df,cols, train_index, test_index, batch_size):
+    """
+    Create train and test DataLoader objects using specified parameters.
+
+    Args:
+        df: pandas.DataFrame
+            DataFrame object containing data to be used for training and testing purposes.
+        cols: list
+            A subset of columns of `df` to include when creating train/test DataLoaders.
+        train_index: array-like
+            An iterable that contains indices representing training samples in `df`. 
+        test_index: array-like
+            An iterable that contains indices representing testing samples in `df`. 
+        batch_size: int
+            Batch size to use while training/testing models.
+    
+    Returns:
+        tuple(DataLoader)
+            A tuple that includes the train and test DataLoaders. 
+    """
 
     train_ds = ShoppersDataset(
         df.loc[train_index][cols].copy().to_numpy()
@@ -29,20 +56,34 @@ def create_train_test(df,cols, train_index, test_index, batch_size):
     return train_dl,test_dl
 
 def load_datasets(data_path,batch_size):
+    """
+    Creates vertically-split datasets to use for vertical federated learning.
+
+    Args:
+        data_path: str
+            Path to the .csv file that includes data for training and testing.
+        batch_size: int
+            Batch size to use while training/testing models.
+    
+    Returns:
+        dict
+            A dictionary that contains the vertically-split datasets for use in federated learning along 
+            with associated train/test labels. 
+    """
     df = pd.read_csv(data_path)
 
-    # targets = df['repeater']
-
+    # Get train/test indices
     train_index, test_index = train_test_split(df.index.values,test_size=0.1,shuffle=False)
-    # treat labels as dataloaders
+    # treating labels as dataloaders --> simplifies VFL training.
+    # get labels
     train_labels, test_labels = create_train_test(
         df=df, cols=['repeater'], train_index=train_index, test_index=test_index, batch_size=batch_size
     )
-
+    # drop repeater column (clients don't have labels)
     df = df.drop('repeater',axis=1)
 
+    # Split's data into three types of clients: brand-,category-, and company-based.
     comp_cols, brand_cols, cat_cols = [],[],[]
-    cpc,brc,ctc = 0,0,0
     for i,col in enumerate(df.columns):
         cnt = -1
         if 'brand' in col: 
@@ -58,7 +99,7 @@ def load_datasets(data_path,batch_size):
             comp_cols.append(col)
     
     
-
+    # create dataloaders for each client
     train_comp_dl, test_comp_dl = create_train_test(df, cols=comp_cols,  train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
@@ -74,6 +115,22 @@ def load_datasets(data_path,batch_size):
     }
 
 def save_data(data_path,batch_size,outfile):
+    """
+    Creates client datasets and saves to pickled file for future use.
+
+    Args:
+        data_path: str
+            Path to the .csv file that includes data for training and testing.
+        batch_size: int
+            Batch size to use while training/testing models.
+        outfile: str
+            Output file destination of pickled dataset dict. 
+    
+    Returns:
+        dict
+            A dictionary that contains the vertically-split datasets for use in federated learning along 
+            with associated train/test labels. 
+    """
     data = load_datasets(
         data_path=data_path, 
         batch_size=batch_size
@@ -86,6 +143,8 @@ def save_data(data_path,batch_size,outfile):
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
     torch.manual_seed(0)
+
+    # set batch size of 32
     BATCH_SIZE = 32
     outfile = './data.pt'
 
