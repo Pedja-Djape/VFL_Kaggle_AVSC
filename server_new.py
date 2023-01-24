@@ -42,13 +42,13 @@ if __name__ == "__main__":
     global_model = Strategy.get_model()
     save(global_model, "./models/global_model.pt")
     
-    # import matplotlib.pyplot as plt 
+    import matplotlib.pyplot as plt 
 
-    # fig, axs = plt.subplots(1,2,sharey=True)
+    fig, axs = plt.subplots(1,2,sharey=True)
     
-    # axs[0].plot(Strategy.train_acc,label='Train Accuracy')
-    # axs[1].plot(Strategy.test_acc, label='Test Accuracy')
-    # axs[1].plot(Strategy.test_f1,label='Test F1-Score')
-    # axs[0].legend()
-    # axs[1].legend()
-    # plt.show()
+    axs[0].plot(Strategy.train_acc,label='Train Accuracy')
+    axs[1].plot(Strategy.test_acc, label='Test Accuracy')
+    axs[1].plot(Strategy.test_f1,label='Test F1-Score')
+    axs[0].legend()
+    axs[1].legend()
+    plt.show()
