@@ -5,8 +5,7 @@ import pandas as pd
 import numpy as np 
 from pickle import dump
 
-pd.set_option('display.max_columns', None)
-torch.manual_seed(0)
+
 class ShoppersDataset(Dataset):
     def __init__(self,X):
         self.X = X
@@ -64,12 +63,6 @@ def load_datasets(data_path,batch_size):
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
 
-    
-    # train_labels = targets.loc[train_index].values.reshape((-1,1))
-    # test_labels  = targets.loc[test_index ].values.reshape((-1,1))
-
-    # assert(np.array_equal(train_labels, train_labels_1.dataset.X))
-    # assert(np.array_equal(test_labels, test_labels_1.dataset.X))
 
     return {
         'data': {
@@ -91,6 +84,8 @@ def save_data(data_path,batch_size,outfile):
     return data
 
 if __name__ == "__main__":
+    pd.set_option('display.max_columns', None)
+    torch.manual_seed(0)
     BATCH_SIZE = 32
     outfile = './data.pt'
 
