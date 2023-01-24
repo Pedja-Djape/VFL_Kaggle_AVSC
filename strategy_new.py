@@ -33,21 +33,48 @@ torch.manual_seed(0)
 def get_parameters(net) -> List[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
+#1e-3 works best so far
+
 class SplitVFL(Strategy):
-    def __init__(self, num_clients, batch_size, dim_input, train_labels, test_labels, lr=1e-6):
+    def __init__(self, num_clients, batch_size, dim_input, train_labels, test_labels, lr=1e-3):
+        """
+        Strategy that implements vertical learning via a SplitNN.
+        
+        Args:
+            num_clients: int
+                Number of clients used for training.
+            batch_size: int
+                Batch size used in training and testing. 
+            dim_inpit: int
+                Dimension of input required for global model.
+            train_labels: DataLoader
+                DataLoader object used for storing training labels.
+            test_labels: DataLoader
+                DataLoader object used for storing testing labels.
+            lr: float
+                Learning rate for global model. 
+        """
         super(SplitVFL, self).__init__()
 
+        # store basic hyperparameters
         self.batch_size = batch_size
         self.num_clients = num_clients
         self.dim_input = dim_input
         self.lr = lr
         self.criterion = BCELoss()
-        self.train_labels = torch.tensor(train_labels)
-        self.test_labels  = torch.tensor(test_labels)
+        
+        # number of batches in test/train sets
+        self.num_train_batches = len(train_labels)
+        self.num_test_batches = len(test_labels)
+        
+        # store labels
+        self.train_label_loader = train_labels
+        self.train_label_iter = iter(self.train_label_loader)
 
-        self.train_lwr_idx = 0
-        self.test_lwr_idx = 0
+        self.test_label_loader = test_labels
+        self.test_label_iter = iter(self.test_label_loader)
 
+        # lists used to track accuracies and other performance metrics
         self.train_acc = []
         self.test_acc = []
 
@@ -56,59 +83,49 @@ class SplitVFL(Strategy):
 
         self.test_f1 = []
         self.test_f1_accum = 0
+        self.train_f1 = []
+        self.train_f1_accum = 0
 
         self.model = None
         self.client_tensors = None
         self.clients_map = None
         self.optim = None
 
+
         
         
     def __repr__(self) -> str:
-        return "VerticalFed"
-    
-    def update_label_index(self,test=False):
-        def update(lwr,len_ls):
-            l,u = None,None
-            if lwr < len_ls:
-                if len_ls - lwr < self.batch_size:
-                    u = len_ls
-                    l = lwr
-                else:
-                    u = lwr + self.batch_size
-                    l = lwr
-            else:
-                l = 0
-                u = l + self.batch_size
-                if test:
-                    self.test_acc += [self.test_correct / len(self.test_labels)]
-                    self.test_correct = 0
-                    self.test_f1 += [self.test_f1_accum / len(self.test_labels)]
-                    self.test_f1_accum
-                else:
-                    self.train_acc += [self.train_correct / len(self.train_labels)]
-                    self.train_correct = 0
-            return l,u
-            
-        
-        idx_u = None
-        if not test:
-            self.train_lwr_idx, idx_u = update(lwr=self.train_lwr_idx, len_ls=len(self.train_labels))
+        return "SplitVFL"
+
+    def get_labels(self,test=False):
+        """
+        Get labels of train or test set.
+        Args:
+            test: bool
+                Determines if test or train labels are fetched.
+        """
+        X = None
+        if test: # get test labels
+            try:
+                X = next(self.test_label_iter)
+            except StopIteration: # if completed entire test set --> eval model metrics
+                self.test_label_iter = iter(self.test_label_loader)
+                X = next(self.test_label_iter)
+                self.test_acc.append(self.test_correct / len(self.test_label_loader.dataset.X))
+                self.test_f1.append(self.test_f1_accum / self.num_test_batches)
+                self.test_correct = 0
+                self.test_f1_accum = 0
         else:
-            self.test_lwr_idx, idx_u = update( lwr=self.test_lwr_idx,  len_ls=len(self.test_labels))
-        # if self.train_lwr_idx < len(self.train_labels):
-        #     # last batch has less than batch_size samples
-        #     if len(self.train_labels) - self.train_lwr_idx < self.batch_size:
-        #         idx_u = len(self.train_labels)
-        #     else:
-        #         # update upper bound normally
-        #         idx_u = self.train_lwr_idx + self.batch_size
-        # else:
-        #     # just passed final batch
-        #     self.train_lwr_idx = 0
-        #     idx_u = self.train_lwr_idx + self.batch_size
-        
-        return idx_u
+            try:
+                X = next(self.train_label_iter)
+            except StopIteration: # if completed entire train set --> eval model metrics
+                self.train_label_iter = iter(self.train_label_loader)
+                X = next(self.train_label_iter)
+                self.train_acc.append(self.train_correct / len(self.train_label_loader.dataset.X))
+                self.train_f1.append(self.train_f1_accum / self.num_train_batches)
+                self.train_correct = 0
+                self.train_f1_accum = 0
+        return X
     
     def initialize_parameters(
         self, client_manager: ClientManager
@@ -120,6 +137,7 @@ class SplitVFL(Strategy):
         self.model = global_model
         self.optim = optim.Adam(self.model.parameters(),lr=self.lr)
         self.criterion = BCELoss()
+        # return global model to clients ***not needed in VFL***
         return ndarrays_to_parameters(ndarrays)
     
     def configure_fit(
@@ -129,6 +147,10 @@ class SplitVFL(Strategy):
             num_clients=self.num_clients,
             min_num_clients=self.num_clients,
         )
+        """
+        Configure clients for training. 
+        """
+        # send current round to clients
         config = { 'server_round': server_round }
         fit_ins = FitIns(parameters, config)
         # return list of tuples of client and fit instructions
@@ -140,11 +162,16 @@ class SplitVFL(Strategy):
         results: List[Tuple[ClientProxy, FitRes]],
         test=False
         ):
+        """
+        Convert intermediate results (embeddings) of client data to input tensor
+        for global model
+        """
         numpy_input = np.empty((self.num_clients, self.batch_size, self.dim_input // self.num_clients))
 
         client_tensors = []
         clients_map = {}
 
+        # For each clients (i) response
         for i, (client, fit_response) in enumerate(results):
             # get client embeddings as numpy arrays
             client_embeddings = None
@@ -152,14 +179,17 @@ class SplitVFL(Strategy):
                 client_embeddings = parameters_to_ndarrays(fit_response.parameters)
             else:
                 client_embeddings = loads(fit_response.metrics['test_embeddings'])
+            # for each sample's embedding
             for j, embeds in enumerate(client_embeddings):
                 numpy_input[i,j,:] = embeds.astype(np.float32)
             
+            # map client id to current index
             clients_map[client.cid] = i
+            # add each client's batch of embeddings (size = batch_size x num features) to list
             client_tensors.append(
                 torch.tensor(numpy_input[i],dtype=torch.float32,requires_grad=True if not test else False)
             )
-
+        # create global model input --> size = batch_size x self.dim_input
         gbl_model_input = torch.cat(client_tensors,1)
 
         if not test:
@@ -174,51 +204,49 @@ class SplitVFL(Strategy):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        """
+        Completes forward pass of global model for training and update global model params.
         
-        # convert all intermediate results from clients to 
+        Args:
+            server_round: int
+                Current server round.
+            results: List of results
+                Results returned by clients -- embeddings.
+            failures: List of failures provided by clients
+                -
+        Returns:
+            Tuple
+                Returns global model parameters and loss metric score.
+        """
+        # convert all intermediate results from clients as 
         # input to the global model
         gbl_model_input = self.__convert_results_to_tensor(results=results)
         gbl_model_output = self.model(gbl_model_input)
 
-        # upper idx
-        # idx_u = None
-        # # if the lower index is less than the number of labels
-        # if self.train_lwr_idx < len(self.train_labels):
-        #     # last batch has less than batch_size samples
-        #     if len(self.train_labels) - self.train_lwr_idx < self.batch_size:
-        #         idx_u = len(self.train_labels)
-        #     else:
-        #         # update upper bound normally
-        #         idx_u = self.train_lwr_idx + self.batch_size
-        # else:
-        #     # just passed final batch
-        #     self.train_lwr_idx = 0
-        #     idx_u = self.train_lwr_idx + self.batch_size
-
-        
-        idx_u = self.update_label_index()
-
+        # get labels
+        labels = self.get_labels(test=False).float()
+        # zero gradients
         self.optim.zero_grad()
+        # compute loss
         loss = self.criterion(
             gbl_model_output,
-            self.train_labels[
-                self.train_lwr_idx : idx_u
-            ].float()
+            labels
         )
+        # backpropagation and update
         loss.backward()
         self.optim.step()
-
+        
+        # get predictions
         preds = torch.round(gbl_model_output)
+        # number of correct preds in batch
         num_correct = (
-                preds == self.train_labels[self.train_lwr_idx : idx_u] 
+                preds == labels
             ).float().sum().squeeze().item()
 
         self.train_correct += num_correct
+        f1 = f1_score(labels.numpy(), preds.detach().numpy())
+        self.train_f1_accum += f1
         
-
-        self.train_lwr_idx += self.batch_size
-        
-        print(f'\ntrainAccuracy: {num_correct / len(gbl_model_input)}, \tnum samples: {len(gbl_model_input)}\n')
         return (ndarrays_to_parameters(
             get_parameters(self.model)
         ), {'loss': str(loss.item()), })
@@ -229,7 +257,9 @@ class SplitVFL(Strategy):
         parameters: Parameters,
         client_manager: ClientManager
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
-
+        """
+        Configure clients for testing.
+        """
         # sample all clients
         clients = client_manager.sample(
             num_clients=self.num_clients, min_num_clients=self.num_clients
@@ -241,7 +271,7 @@ class SplitVFL(Strategy):
         
         for client in clients:
             idx = self.clients_map[client.cid]
-            # provide gradient to clients
+            # provide gradient of loss fxn wrt clients inputs to model (their outputs) to each respective client.
             tensor = self.client_tensors[idx]
             
             ins = EvaluateIns(
@@ -257,40 +287,43 @@ class SplitVFL(Strategy):
         results: List[Tuple[ClientProxy, EvaluateRes]],
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[float], Dict[str, Scalar]]:
-
+        """
+        Compute model performance metrics on test set. 
+        """
         criterion = BCELoss()
-        
+        # convert client inputs to global model input
         gbl_model_input = self.__convert_results_to_tensor(results,test=True)
         
         with torch.no_grad():
+            # compute model output and get metrics
             gbl_model_output = self.model(gbl_model_input).float()
-            idx_u = self.update_label_index(test=True)
-            
+            labels = self.get_labels(test=True).float()
             loss = criterion(
                 gbl_model_output,
-                self.test_labels[
-                    self.test_lwr_idx : idx_u
-                ].float()
+                labels
             )
+            # obtain predictions
             preds = torch.round(gbl_model_output)
+            # number correct preds in current batch
             num_correct = (
-                preds == self.test_labels[self.test_lwr_idx : idx_u] 
+                preds == labels
             ).float().sum().squeeze().item()
-
-            acc = num_correct / len(gbl_model_input)
-            f1 = f1_score(self.test_labels[self.test_lwr_idx : idx_u].numpy(), preds.numpy())
+            # compute f1
+            f1 = f1_score(labels.numpy(), preds.numpy())
 
             self.test_f1_accum += f1
-            self.test_lwr_idx += self.batch_size
             self.test_correct += num_correct
-            
-        return (server_round, {'loss': str(loss.item()), 'accuracy': acc, 'f1': f1})
+        # return dummy evaluation dictionaru
+        return (server_round, {None: str(None)})
 
     
     def evaluate(
         self, server_round: int, parameters: Parameters
     ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
-        """Evaluate the current model parameters."""
-        # print(f"Strategy.evaluate ... server_round: {server_round}")
+        """Evaluate the current model parameters on central dataset."""
         pass
+    # return model
+    def get_model(self):
+        return self.model.state_dict()
+
 
