@@ -104,7 +104,15 @@ def load_datasets(data_path,batch_size):
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
 
-
+    # rval = {
+    #     'data': {
+    #         'company': {'train': train_comp_dl, 'test': test_comp_dl},
+    #         'brand': {'train': train_brand_dl, 'test': test_brand_dl},
+    #         'category': {'train': train_cat_dl, 'test': test_cat_dl}
+    #     },
+    #     'train_labels': train_labels, 'test_labels': test_labels, 
+    #     'batch_size': batch_size
+    # }
     return {
         'data': {
             'train': [train_comp_dl,train_cat_dl,train_brand_dl], 
@@ -139,6 +147,25 @@ def save_data(data_path,batch_size,outfile):
         dump(data, f)
     
     return data
+
+class ClientIdentifier:
+
+    def __init__(self):
+        self.cid_to_client_map = {
+            0: 'company',
+            1: 'category',
+            2: 'brand'
+        }
+        self.client_to_cid = {
+            'company': 0,
+            'category': 1,
+            'brand': 2
+        }
+    def get_cid_from_client(self,client_type):
+        return self.client_to_cid[client_type]
+    
+    def get_client_from_cid(self,cid):
+        return self.cid_to_client_map[cid]
 
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
