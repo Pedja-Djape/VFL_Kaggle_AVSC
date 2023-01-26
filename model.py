@@ -12,11 +12,13 @@ class Net(nn.Module):
     def __init__(self,n_inputs,output_dim) -> None:
         super(Net, self).__init__()
         self.middle_layer = (n_inputs + output_dim) // 2
+        self.output_dim = output_dim
 
         self.fc1 = nn.Linear(n_inputs, self.middle_layer)
         self.fc3 = nn.Linear(self.middle_layer,output_dim)
 
     def forward(self,x):
         h = F.relu(self.fc1(x))
-        h = sigmoid(self.fc3(h))
+        tmp = self.fc3(h)
+        h = sigmoid(tmp) if self.output_dim == 1 else tmp
         return h
