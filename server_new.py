@@ -14,12 +14,11 @@ if __name__ == "__main__":
     BATCH_SIZE = 32
     NUM_CLIENTS = 3
     # number of batches to iterate through
-    NUM_ROUNDS = 30000
+    NUM_ROUNDS = 5000
     outfile = './data.pt'
-    infile = './data.pt'
 
     # get data and save
-    DATA = save_data(data_path='../data/train_data.csv', batch_size=BATCH_SIZE,outfile=outfile)
+    DATA = save_data(data_path='../data/tmp_train_data.csv', batch_size=BATCH_SIZE,outfile=outfile)
 
     # create strategy
     Strategy = stgy.SplitVFL(
@@ -27,7 +26,7 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE, 
         dim_input= 18, # 6 outputs for three clients
         train_labels = DATA['train_labels'],
-        test_labels=DATA['test_labels']
+        test_labels=DATA['test_labels'],
     )
     # start server
     fl.server.start_server(
