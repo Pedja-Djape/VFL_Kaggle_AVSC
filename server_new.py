@@ -8,17 +8,31 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 import flwr as fl
 
+import argparse
 
 if __name__ == "__main__":
-    # batch size and number of clients
-    BATCH_SIZE = 32
-    NUM_CLIENTS = 3
-    # number of batches to iterate through
-    NUM_ROUNDS = 5000
-    outfile = './data.pt'
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument("-bs","--batchsize",type=int)
+    parser.add_argument("-n", "--numclients",type=int)
+    parser.add_argument("-do","--dataoutput",type=str)
+    parser.add_argument("-nr","--numrounds",type=int)
+    parser.add_argument("-f","--trainfile",type=str)
+
+    args = parser.parse_args()
+
+    
+
+    # batch size and number of clients
+    BATCH_SIZE = args.batchsize
+    NUM_CLIENTS = args.numclients
+    # number of batches to iterate through
+    NUM_ROUNDS = args.numrounds
+    outfile = args.dataoutput
+    infile = args.trainfile
+    
     # get data and save
-    DATA = save_data(data_path='../data/tmp_train_data.csv', batch_size=BATCH_SIZE,outfile=outfile)
+    DATA = save_data(data_path=infile, batch_size=BATCH_SIZE,outfile=outfile)
 
     # create strategy
     Strategy = stgy.SplitVFL(
