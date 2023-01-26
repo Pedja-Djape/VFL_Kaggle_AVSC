@@ -104,23 +104,24 @@ def load_datasets(data_path,batch_size):
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
 
-    # rval = {
-    #     'data': {
-    #         'company': {'train': train_comp_dl, 'test': test_comp_dl},
-    #         'brand': {'train': train_brand_dl, 'test': test_brand_dl},
-    #         'category': {'train': train_cat_dl, 'test': test_cat_dl}
-    #     },
-    #     'train_labels': train_labels, 'test_labels': test_labels, 
-    #     'batch_size': batch_size
-    # }
-    return {
+    rval = {
         'data': {
-            'train': [train_comp_dl,train_cat_dl,train_brand_dl], 
-            'test': [test_comp_dl,test_cat_dl,test_brand_dl]
-        },    
+            'company': {'train': train_comp_dl, 'test': test_comp_dl},
+            'brand': {'train': train_brand_dl, 'test': test_brand_dl},
+            'category': {'train': train_cat_dl, 'test': test_cat_dl}
+        },
         'train_labels': train_labels, 'test_labels': test_labels, 
         'batch_size': batch_size
     }
+    # rval = {
+    #     'data': {
+    #         'train': [train_comp_dl,train_cat_dl,train_brand_dl], 
+    #         'test': [test_comp_dl,test_cat_dl,test_brand_dl]
+    #     },    
+    #     'train_labels': train_labels, 'test_labels': test_labels, 
+    #     'batch_size': batch_size
+    # }
+    return rval 
 
 def save_data(data_path,batch_size,outfile):
     """
