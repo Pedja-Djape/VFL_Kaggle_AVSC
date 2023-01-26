@@ -7,34 +7,67 @@ from collections import OrderedDict
 from flwr.common import parameters_to_ndarrays
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+import pickle as pi
+
+import time
 
 
-torch.manual_seed(0)
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self,cid, net, trainloader,optimizer):
+    def __init__(self,cid, net, trainloader,testloader, optimizer):
+        """
+        Class that represents a client in Flower.
+
+        Args:
+            cid: int
+                Integer representing ClientID
+            net: PyTorch NN
+                A PyTorch NN to be used for training with this client.
+            trainloader: DataLoader
+                DataLoader object to use while training model.
+            testloader: DataLoader
+                DataLoader object to use while training model.
+            optimizer: PyTorch Optimizer
+                Optimizer to use while updating model parameters. (e.g. Adam)
+        """
         super(FlowerClient,self).__init__()
         # client id
         self.cid = cid
-        # client net
+        # client network
         self.net = net
-        # train iterator
+        # train loader and iterator
         self.trainloader = trainloader
         self.trainiter = iter(trainloader)
-        # optimizer (Adamm, etc.)
+        # test loader and iterator
+        self.test_loader = testloader 
+        self.testiter = iter(self.test_loader)
+
+        # optimizer (
         self.optimizer = optimizer
         # outputs from previous round
         self.outputs = None
         
-
+    # Gets model parameters
     def get_parameters(self, config):
         return [
             val.cpu.numpy() for _,val in self.net.state_dict().items()
         ]
 
-    def set_parameters(self, parameters):
-        return
 
     def fit(self,parameters,config):
+        """
+        Completes forward pass of one batch.
+
+        Args:
+            parameters: Parameters
+                Parameters of global model. ***Not needed in VFL***
+            config: dict
+                Configuration dictionary provided by server that contains
+                configuration information like current round.
+
+        Returns:
+            Tuple
+                Returns embeddings of train batch to server and dummy metrics
+        """
         # Read values from config
         server_round = config['server_round']
         # get batch
@@ -43,15 +76,43 @@ class FlowerClient(fl.client.NumPyClient):
         except StopIteration:
             self.trainiter = iter(self.trainloader)
             X = next(self.trainiter)
-        X = next(self.trainiter)
         outputs = self.net(X.float())
         self.outputs = outputs
+        
         return [x for x in outputs.detach().numpy()], 1, {}
 
     def evaluate(self, parameters, config):
+        """
+        Update model parameters and complete forward pass of one batch
+        of test data.
+
+        Args:
+            parameters: Parameters
+                Parameters of global model. ***Not needed in VFL***
+            config: dict
+                Configuration dictionary provided by server that contains
+                configuration information like current round
+        Returns:
+            Tuple
+                Returns embeddings of test batch in metrics dictionary.
+        """
         self.outputs.backward(torch.tensor(np.array(parameters)))
         self.optimizer.step()
-        return .0, 0, {}
+
+        try:
+            X = next(self.testiter)
+        except StopIteration:
+            self.testiter = iter(self.test_loader)
+            X = next(self.testiter)
+        
+        with torch.no_grad():
+            outputs = self.net(X.float()).numpy()
+        bytes_outputs = pi.dumps([ x for x in outputs])
+        return 0., 0, {'test_embeddings': bytes_outputs}
+    
+    # get model
+    def get_model(self):
+        return self.net.state_dict()
     
 if __name__ == "__main__":
     import argparse
@@ -60,22 +121,39 @@ if __name__ == "__main__":
     import model
     from torch.optim import Adam
 
+    # accept client id arguement from cmd line
     parser = argparse.ArgumentParser()
     parser.add_argument("cid")
     args = parser.parse_args()
     
     
-
+    # obtain training data from file saved by server
     with open('data.pt','rb') as f:
         data = pickle.load(f)
+    # Get train and test data
+    train_dataloader = data['data']['train'][int(args.cid)]
+    test_dataloader = data['data']['test'][int(args.cid)]
     
-    dataloader = data['data'][int(args.cid)]
-    model = model.Net(dataloader.dataset.X.shape[-1], 6)
+    # set seed for consitency
+    torch.manual_seed(0)
+    # fix model with size 6 output dimensions
+    model = model.Net(train_dataloader.dataset.X.shape[-1], 6)
 
+    # Create Client with lr 1e-7
+    Client = FlowerClient(
+        cid=str(args.cid), 
+        net = model, 
+        trainloader=train_dataloader, 
+        testloader=test_dataloader, 
+        optimizer = Adam(model.parameters(), lr=1e-7)
+    )
+    # start client and connect to server
     fl.client.start_numpy_client(
         server_address="127.0.0.1:8080",
-        client=FlowerClient(
-            cid=str(args.cid), net = model, trainloader=dataloader, optimizer = Adam(model.parameters(), lr=1e-2))
+        client=Client
     )
-    
+
+    # Save model for testing purposes after training. 
+    client_model = Client.get_model()
+    torch.save(client_model,f'./models/model_{args.cid}.pt')
 

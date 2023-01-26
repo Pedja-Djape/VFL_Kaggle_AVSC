@@ -1,4 +1,15 @@
 venv/
+eval/ 
+VFL_Code/
+VFL_Code.zip
 
-data.pt
 outputs_*
+
+*.pt
+
+models/
+
+*.pdf
+workflow.md
+
+*.csv
