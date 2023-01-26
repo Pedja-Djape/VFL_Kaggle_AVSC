@@ -3,6 +3,8 @@ import torch
 from utils import ShoppersDataset,load_datasets,save_data
 from sklearn import metrics
 import matplotlib.pyplot as plt
+import argparse
+from pickle import load
 
 # load a given model from it's picked form
 def load_model(dim_input, dim_output, cid=None):
@@ -23,9 +25,11 @@ def get_client_input_dim(data_dict,cid):
     return data_dict['data']['test'][cid].dataset.X.shape[-1]
 
 # get all client datasets, models, and targets
-def get_client_info(num_clients, batch_size, outfile):
-    data = save_data(data_path='../data/train_data.csv', batch_size=batch_size, outfile=outfile)
-    
+def get_client_info(num_clients, batch_size, infile):
+
+    with open(infile,'rb') as f:
+        data = load(f)
+
     labels = data['test_labels']
 
     client_data = [
@@ -42,9 +46,9 @@ def get_client_info(num_clients, batch_size, outfile):
     return client_data, client_models, labels
 
 
-def main(num_clients, batch_size, outfile):
+def main(num_clients, batch_size, infile):
     
-    client_data, client_models, labels_dl = get_client_info(num_clients, batch_size, outfile)
+    client_data, client_models, labels_dl = get_client_info(num_clients, batch_size, infile)
 
     labels = iter(labels_dl)
 
@@ -86,13 +90,20 @@ def main(num_clients, batch_size, outfile):
     
 
 if __name__ == "__main__":
-    NUM_CLIENTS = 3
-    batch_size = 32
-    outfile = 'data.pt'
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-bs","--batchsize",type=int)
+    parser.add_argument("-n", "--numclients",type=int)
+    parser.add_argument("-d", "--datafile",type=str)
+
+    args = parser.parse_args()
+
+    NUM_CLIENTS = args.numclients
+    batch_size = args.batchsize
+    infile = args.datafile
     main(
         num_clients=NUM_CLIENTS,
         batch_size=batch_size,
-        outfile=outfile
+        infile=infile
     )
     pass
 
