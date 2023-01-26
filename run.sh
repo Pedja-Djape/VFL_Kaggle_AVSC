@@ -9,7 +9,7 @@ NUM_ROUNDS=5000
 TRAIN_DATA='../data/tmp_train_data.csv'
 
 echo "Starting server"
-python3 server_new.py -bs $BATCH_SIZE -n $NUM_CLIENTS -do $DATA_OUTPUT -nr $NUM_CLIENTS -f $TRAIN_DATA &
+python3 server_new.py -bs $BATCH_SIZE -n $NUM_CLIENTS -do $DATA_OUTPUT -nr $NUM_ROUNDS -f $TRAIN_DATA &
 sleep 3  # Sleep for 3s to give the server enough time to start
 
 # Start clients with given IDs
