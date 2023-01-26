@@ -1,9 +1,8 @@
 venv/
 
-data.pt
 outputs_*
 
-accs.pt
+*.pt
 
 models/
 VFL_Code/
