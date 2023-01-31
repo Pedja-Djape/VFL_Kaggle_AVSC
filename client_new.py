@@ -117,23 +117,34 @@ class FlowerClient(fl.client.NumPyClient):
 if __name__ == "__main__":
     import argparse
     import pickle
-    from utils import ShoppersDataset
+    from utils import ShoppersDataset, ClientIdentifier
     import model
     from torch.optim import Adam
 
     # accept client id arguement from cmd line
     parser = argparse.ArgumentParser()
-    parser.add_argument("cid")
+    parser.add_argument("cid",type=int)
+    parser.add_argument("-d","--datafile",type=str)
+    parser.add_argument("-lr","--learningrate",type=float)
     args = parser.parse_args()
+
     
-    
+    infile = args.datafile
+    cid    = args.cid
+    lr     = args.learningrate
+
     # obtain training data from file saved by server
-    with open('data.pt','rb') as f:
+    with open(infile,'rb') as f:
         data = pickle.load(f)
     # Get train and test data
-    train_dataloader = data['data']['train'][int(args.cid)]
-    test_dataloader = data['data']['test'][int(args.cid)]
+    # train_dataloader = data['data']['train'][int(args.cid)]
+    # test_dataloader = data['data']['test'][int(args.cid)]
     
+    ci = ClientIdentifier()
+    client_type = ci.get_client_from_cid(cid=cid)
+    train_dataloader = data['data'][client_type]['train']
+    test_dataloader  = data['data'][client_type]['test']
+
     # set seed for consitency
     torch.manual_seed(0)
     # fix model with size 6 output dimensions
@@ -145,7 +156,7 @@ if __name__ == "__main__":
         net = model, 
         trainloader=train_dataloader, 
         testloader=test_dataloader, 
-        optimizer = Adam(model.parameters(), lr=1e-7)
+        optimizer = Adam(model.parameters(), lr=lr)
     )
     # start client and connect to server
     fl.client.start_numpy_client(
