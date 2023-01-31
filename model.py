@@ -19,6 +19,5 @@ class Net(nn.Module):
 
     def forward(self,x):
         h = F.relu(self.fc1(x))
-        tmp = self.fc3(h)
-        h = sigmoid(tmp) if self.output_dim == 1 else tmp
-        return h
+        h = self.fc3(h)
+        return sigmoid(h)
