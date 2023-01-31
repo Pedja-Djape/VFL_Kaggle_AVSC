@@ -13,3 +13,5 @@ models/
 workflow.md
 
 *.csv
+
+results.txt
