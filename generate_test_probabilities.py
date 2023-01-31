@@ -4,6 +4,8 @@ from torch.utils.data import DataLoader
 from model import Net
 import torch
 
+import argparse
+
 # load a given model from it's picked form
 def load_model(dim_input, dim_output, cid=None):
     model = Net(dim_input,dim_output)
@@ -17,6 +19,17 @@ def load_model(dim_input, dim_output, cid=None):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-gblr","--globallr",type=float)
+    parser.add_argument("-bs","--batchsize",type=int)
+    parser.add_argument("-clrs","--clientlrs",nargs='+',type=float)
+    parser.add_argument("-nr","--numrounds",type=int)
+
+    args       = parser.parse_args()
+    gblr       = args.globallr 
+    bs         = args.batchsize 
+    clrs       = args.clientlrs
+    num_rounds = args.numrounds
 
     test_data = pd.read_csv("../data/tmp_test_data.csv")
 
@@ -60,11 +73,13 @@ if __name__ == "__main__":
     brand_cid = ci.get_cid_from_client(client_type='brand')
     category_cid = ci.get_cid_from_client(client_type='category')
 
-    company_model = load_model(dim_input=company_client.shape[-1], dim_output=6,cid = company_cid)
-    brand_model = load_model(dim_input=brand_client.shape[-1], dim_output=6, cid = brand_cid)
-    category_model = load_model(dim_input=category_client.shape[-1], dim_output=6, cid = category_cid)
+    client_outputs = 6
 
-    global_model = load_model(dim_input = 6*3, dim_output = 1)
+    company_model = load_model(dim_input=company_client.shape[-1], dim_output=client_outputs,cid = company_cid)
+    brand_model = load_model(dim_input=brand_client.shape[-1], dim_output=client_outputs, cid = brand_cid)
+    category_model = load_model(dim_input=category_client.shape[-1], dim_output=client_outputs, cid = category_cid)
+
+    global_model = load_model(dim_input = client_outputs*3, dim_output = 1)
 
     with torch.no_grad():
         company_outputs = company_model(next(iter(company_dl)).float())
@@ -77,10 +92,13 @@ if __name__ == "__main__":
 
         preds = gbl_model_outputs.numpy()
     
+    # do the client outputs have sigmoid applied
+    client_sigmoid_output = 1
     ids = pd.read_csv("../data/testHistory.csv").id 
     df = pd.DataFrame(data={"id": ids, "repeatProbability": preds.squeeze()})
 
-    df.to_csv('./eval_test_.csv',index=False)
+    clrs_string = ''.join(str(lr) for lr in clrs)
+    df.to_csv(f'./eval/evaltest_co_{client_outputs}_gblr_{gblr}_bs_{bs}_clrs_{clrs_string}_nr_{num_rounds}_csmo_{client_sigmoid_output}.csv',index=False)
 
 
 
