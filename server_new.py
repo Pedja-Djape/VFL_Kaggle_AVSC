@@ -18,7 +18,8 @@ if __name__ == "__main__":
     parser.add_argument("-do","--dataoutput",type=str)
     parser.add_argument("-nr","--numrounds",type=int)
     parser.add_argument("-f","--trainfile",type=str)
-
+    parser.add_argument("-gblr","--globallr",type=float)
+    
     args = parser.parse_args()
 
     
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     NUM_ROUNDS = args.numrounds
     outfile = args.dataoutput
     infile = args.trainfile
-    
+    lr = args.globallr 
     # get data and save
     DATA = save_data(data_path=infile, batch_size=BATCH_SIZE,outfile=outfile)
 
