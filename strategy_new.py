@@ -91,6 +91,9 @@ class SplitVFL(Strategy):
         self.clients_map = None
         self.optim = None
 
+        # Maps client id (cid) to its order in global model input
+        self.order_clients = None
+
 
         
         
@@ -189,6 +192,11 @@ class SplitVFL(Strategy):
             client_tensors.append(
                 torch.tensor(numpy_input[i],dtype=torch.float32,requires_grad=True if not test else False)
             )
+        # client_tensors = [
+        #     torch.tensor(
+        #         numpy_input[(cid)],dtype=torch.float32,requires_grad=True if not test else False
+        #     ) for cid in sorted(self.order_clients.keys()) # would need to change this if clients send embeddings at different times or if failures
+        # ]
         # create global model input --> size = batch_size x self.dim_input
         gbl_model_input = torch.cat(client_tensors,1)
 
@@ -218,6 +226,11 @@ class SplitVFL(Strategy):
             Tuple
                 Returns global model parameters and loss metric score.
         """
+        # map each cid to location of global input
+        if self.order_clients is None:
+            cid_in_order = sorted([client.cid for (client,response) in results])
+            self.order_clients = {cid_in_order[i]: i for i in range(len(cid_in_order))}
+
         # convert all intermediate results from clients as 
         # input to the global model
         gbl_model_input = self.__convert_results_to_tensor(results=results)
