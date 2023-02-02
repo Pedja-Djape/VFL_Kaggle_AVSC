@@ -90,9 +90,12 @@ class SplitVFL(Strategy):
         self.client_tensors = None
         self.clients_map = None
         self.optim = None
+        self.scheduler = None
 
         # Maps client id (cid) to its order in global model input
         self.order_clients = None
+
+        self.round = 1
 
 
         
@@ -140,6 +143,7 @@ class SplitVFL(Strategy):
         self.model = global_model
         self.optim = optim.Adam(self.model.parameters(),lr=self.lr)
         self.criterion = BCELoss()
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optim,mode='max')
         # return global model to clients ***not needed in VFL***
         return ndarrays_to_parameters(ndarrays)
     
@@ -175,6 +179,7 @@ class SplitVFL(Strategy):
         clients_map = {}
 
         # For each clients (i) response
+        empty_samples = None
         for i, (client, fit_response) in enumerate(results):
             # get client embeddings as numpy arrays
             client_embeddings = None
@@ -182,6 +187,10 @@ class SplitVFL(Strategy):
                 client_embeddings = parameters_to_ndarrays(fit_response.parameters)
             else:
                 client_embeddings = loads(fit_response.metrics['test_embeddings'])
+
+            # if the current batch is the last batch (i.e., dataset length not divisible by batch size)
+            if (len(client_embeddings) != self.batch_size) and empty_samples is None:
+                empty_samples = self.batch_size - len(client_embeddings)
             # for each sample's embedding
             for j, embeds in enumerate(client_embeddings):
                 numpy_input[i,j,:] = embeds.astype(np.float32)
@@ -189,8 +198,11 @@ class SplitVFL(Strategy):
             # map client id to current index
             clients_map[client.cid] = i
             # add each client's batch of embeddings (size = batch_size x num features) to list
+            
+            ni = numpy_input[i] if empty_samples is None else numpy_input[i,:-empty_samples]
+            
             client_tensors.append(
-                torch.tensor(numpy_input[i],dtype=torch.float32,requires_grad=True if not test else False)
+                torch.tensor(ni,dtype=torch.float32,requires_grad=True if not test else False)
             )
         # client_tensors = [
         #     torch.tensor(
