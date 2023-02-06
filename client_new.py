@@ -173,5 +173,6 @@ if __name__ == "__main__":
     client_model = Client.get_model()
     torch.save(client_model,f'./models/model_{args.cid}.pt')
 
-    print(f"Client with cid `{args.cid}` has order `{Client.get_order()}`")
+    with open(f"./models/model_{args.cid}_order_{Client.get_order()}",'wb') as f:
+        pi.dump({'cid': args.cid,'order': Client.get_order()}, file)
 
