@@ -9,7 +9,7 @@ DATA_OUTPUT="./change_data_tmp.pt"
 NUM_ROUNDS=15000
 # TRAIN_DATA='../data/tmp_train_data.csv'
 TRAIN_DATA='../change_data/tmp_train_data.csv'
-GBL_LR='1e-0'
+GBL_LR='1e-2'
 
 CLIENT_LRS=('1e-6' '1e-6' '1e-6')
 
@@ -34,6 +34,6 @@ trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM
 wait
 
 # Test VFL system
-# python3 compute_test_metrics.py -n $NUM_CLIENTS -d $DATA_OUTPUT
+python3 compute_test_metrics.py -n $NUM_CLIENTS -d $DATA_OUTPUT
 
-# python3 generate_test_probabilities.py -gblr $GBL_LR -bs $BATCH_SIZE -clrs ${CLIENT_LRS[0]} ${CLIENT_LRS[1]} ${CLIENT_LRS[$2]} -nr $NUM_ROUNDS -s "onplateu-max-f1"
+python3 generate_test_probabilities.py -gblr $GBL_LR -bs $BATCH_SIZE -clrs ${CLIENT_LRS[0]} ${CLIENT_LRS[1]} ${CLIENT_LRS[$2]} -nr $NUM_ROUNDS -s "onplateu-max-f1"
