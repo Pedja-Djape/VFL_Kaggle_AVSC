@@ -45,6 +45,8 @@ class FlowerClient(fl.client.NumPyClient):
         self.optimizer = optimizer
         # outputs from previous round
         self.outputs = None
+
+        self.myorder = None
         
     # Gets model parameters
     def get_parameters(self, config):
@@ -68,6 +70,8 @@ class FlowerClient(fl.client.NumPyClient):
             Tuple
                 Returns embeddings of train batch to server and dummy metrics
         """
+        if self.myorder is None and 'order' in config:
+            self.myorder = config['order']
         # Read values from config
         server_round = config['server_round']
         # get batch
@@ -98,13 +102,11 @@ class FlowerClient(fl.client.NumPyClient):
         """
         self.outputs.backward(torch.tensor(np.array(parameters)))
         self.optimizer.step()
-
         try:
             X = next(self.testiter)
         except StopIteration:
             self.testiter = iter(self.test_loader)
             X = next(self.testiter)
-        
         with torch.no_grad():
             outputs = self.net(X.float()).numpy()
         bytes_outputs = pi.dumps([ x for x in outputs])
@@ -113,6 +115,9 @@ class FlowerClient(fl.client.NumPyClient):
     # get model
     def get_model(self):
         return self.net.state_dict()
+
+    def get_order(self):
+        return self.myorder
     
 if __name__ == "__main__":
     import argparse
@@ -167,4 +172,6 @@ if __name__ == "__main__":
     # Save model for testing purposes after training. 
     client_model = Client.get_model()
     torch.save(client_model,f'./models/model_{args.cid}.pt')
+
+    print(f"Client with cid `{args.cid}` has order `{Client.get_order()}`")
 
