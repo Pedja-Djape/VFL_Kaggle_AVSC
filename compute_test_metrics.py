@@ -1,8 +1,10 @@
 from model import Net
 import torch
-from utils import ShoppersDataset,load_datasets,save_data
+from utils import ShoppersDataset,ClientIdentifier
 from sklearn import metrics
 import matplotlib.pyplot as plt
+import argparse
+from pickle import load
 
 # load a given model from it's picked form
 def load_model(dim_input, dim_output, cid=None):
@@ -15,26 +17,32 @@ def load_model(dim_input, dim_output, cid=None):
     return model
 
 # get a given client's test data
-def load_client_data(data_dict,cid):
-    return data_dict['data']['test'][cid]
+def load_client_data(data_dict, cid, ci):
+    client_type = ci.get_client_from_cid(cid=cid)
+    return data_dict['data'][client_type]['test']
 
 # get input dimension of a client model
-def get_client_input_dim(data_dict,cid):
-    return data_dict['data']['test'][cid].dataset.X.shape[-1]
+def get_client_input_dim(data_dict, cid, ci):
+    client_type = ci.get_client_from_cid(cid=cid)
+    return data_dict['data'][client_type]['test'].dataset.X.shape[-1]
 
 # get all client datasets, models, and targets
-def get_client_info(num_clients, batch_size, outfile):
-    data = save_data(data_path='../data/train_data.csv', batch_size=batch_size, outfile=outfile)
-    
+def get_client_info(num_clients, infile, ci):
+
+    # load data saved earlier (in server_new.py)
+    with open(infile,'rb') as f:
+        data = load(f)
+    # get labels
     labels = data['test_labels']
 
+    # get client_data, clients loaded in order of increasing cid 
     client_data = [
-        load_client_data(data, i) for i in range(num_clients)
+        load_client_data(data, i, ci=ci) for i in range(num_clients)
     ]
 
     client_models = [
         load_model(
-            dim_input = get_client_input_dim(data, i), 
+            dim_input = get_client_input_dim(data, i, ci=ci), 
             dim_output = 6,
             cid = i
         ) for i in range(num_clients)
@@ -42,9 +50,11 @@ def get_client_info(num_clients, batch_size, outfile):
     return client_data, client_models, labels
 
 
-def main(num_clients, batch_size, outfile):
+def main(num_clients, infile):
+
+    ci = ClientIdentifier()
     
-    client_data, client_models, labels_dl = get_client_info(num_clients, batch_size, outfile)
+    client_data, client_models, labels_dl = get_client_info(num_clients, infile, ci=ci)
 
     labels = iter(labels_dl)
 
@@ -86,13 +96,18 @@ def main(num_clients, batch_size, outfile):
     
 
 if __name__ == "__main__":
-    NUM_CLIENTS = 3
-    batch_size = 32
-    outfile = 'data.pt'
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--numclients",type=int)
+    parser.add_argument("-d", "--datafile",type=str)
+
+    args = parser.parse_args()
+
+    NUM_CLIENTS = args.numclients
+    infile = args.datafile
+    
     main(
         num_clients=NUM_CLIENTS,
-        batch_size=batch_size,
-        outfile=outfile
+        infile=infile
     )
     pass
 

@@ -90,6 +90,12 @@ class SplitVFL(Strategy):
         self.client_tensors = None
         self.clients_map = None
         self.optim = None
+        self.scheduler = None
+
+        # Maps client id (cid) to its order in global model input
+        self.order_clients = {}
+
+        self.round = 1
 
 
         
@@ -137,6 +143,7 @@ class SplitVFL(Strategy):
         self.model = global_model
         self.optim = optim.Adam(self.model.parameters(),lr=self.lr)
         self.criterion = BCELoss()
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optim,mode='max')
         # return global model to clients ***not needed in VFL***
         return ndarrays_to_parameters(ndarrays)
     
@@ -150,12 +157,17 @@ class SplitVFL(Strategy):
         """
         Configure clients for training. 
         """
-        # send current round to clients
-        config = { 'server_round': server_round }
-        fit_ins = FitIns(parameters, config)
+        rval = []
+
+        for i, client in enumerate(clients):
+            if client.cid not in self.order_clients:
+                self.order_clients[client.cid] = i
+            config = { 'server_round': server_round, 'order': i}
+            fit_ins = FitIns(parameters, config)
+            rval.append((client,fit_ins))
         # return list of tuples of client and fit instructions
         # fit instructions are just global model parameters and config.
-        return [ (client, fit_ins) for client in clients]
+        return rval
 
     # below works for clients sending one batch at a time
     def __convert_results_to_tensor(self,
@@ -168,10 +180,11 @@ class SplitVFL(Strategy):
         """
         numpy_input = np.empty((self.num_clients, self.batch_size, self.dim_input // self.num_clients))
 
-        client_tensors = []
+        client_tensors = [None for i in range(self.num_clients)]
         clients_map = {}
 
         # For each clients (i) response
+        empty_samples = None
         for i, (client, fit_response) in enumerate(results):
             # get client embeddings as numpy arrays
             client_embeddings = None
@@ -179,6 +192,10 @@ class SplitVFL(Strategy):
                 client_embeddings = parameters_to_ndarrays(fit_response.parameters)
             else:
                 client_embeddings = loads(fit_response.metrics['test_embeddings'])
+
+            # if the current batch is the last batch (i.e., dataset length not divisible by batch size)
+            if (len(client_embeddings) != self.batch_size) and empty_samples is None:
+                empty_samples = self.batch_size - len(client_embeddings)
             # for each sample's embedding
             for j, embeds in enumerate(client_embeddings):
                 numpy_input[i,j,:] = embeds.astype(np.float32)
@@ -186,10 +203,21 @@ class SplitVFL(Strategy):
             # map client id to current index
             clients_map[client.cid] = i
             # add each client's batch of embeddings (size = batch_size x num features) to list
-            client_tensors.append(
-                torch.tensor(numpy_input[i],dtype=torch.float32,requires_grad=True if not test else False)
-            )
+            
+            ni = numpy_input[i] if empty_samples is None else numpy_input[i,:-empty_samples]
+            
+            # client_tensors.append(
+            #     torch.tensor(ni,dtype=torch.float32,requires_grad=True if not test else False)
+            # )
+            client_tensors[self.order_clients[client.cid]] = torch.tensor(ni,dtype=torch.float32,requires_grad=True if not test else False)
+
+        # client_tensors = [
+        #     torch.tensor(
+        #         numpy_input[(cid)],dtype=torch.float32,requires_grad=True if not test else False
+        #     ) for cid in sorted(self.order_clients.keys()) # would need to change this if clients send embeddings at different times or if failures
+        # ]
         # create global model input --> size = batch_size x self.dim_input
+
         gbl_model_input = torch.cat(client_tensors,1)
 
         if not test:
@@ -272,7 +300,8 @@ class SplitVFL(Strategy):
         for client in clients:
             idx = self.clients_map[client.cid]
             # provide gradient of loss fxn wrt clients inputs to model (their outputs) to each respective client.
-            tensor = self.client_tensors[idx]
+            # tensor = self.client_tensors[idx]
+            tensor = self.client_tensors[self.order_clients[client.cid]]
             
             ins = EvaluateIns(
                 ndarrays_to_parameters(tensor.grad.numpy()),
