@@ -3,7 +3,7 @@ from utils import ShoppersDataset,ClientIdentifier
 from torch.utils.data import DataLoader
 from model import Net
 import torch
-
+from pickle import load
 import argparse
 
 # load a given model from it's picked form
@@ -16,7 +16,12 @@ def load_model(dim_input, dim_output, cid=None):
     model.eval()
     return model
 
-
+def get_client_order(cids):
+    rval = {}
+    for cid in cids:
+        with open(f"./models/model_{cid}_info.pt","rb") as f:
+            rval[cid] = load(f)['order']
+    return rval
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -84,12 +89,20 @@ if __name__ == "__main__":
 
     global_model = load_model(dim_input = client_outputs*3, dim_output = 1)
 
+    client_order = get_client_order([company_cid,brand_cid,category_cid])
+
     with torch.no_grad():
         company_outputs = company_model(next(iter(company_dl)).float())
         brand_outputs = brand_model(next(iter(brand_dl)).float())
         category_outputs = category_model(next(iter(category_dl)).float())
 
-        gbl_model_inputs = torch.cat([company_outputs,brand_outputs,category_outputs],dim=1)
+        gbl_model_inputs = [None for i in range(3)]
+
+        gbl_model_inputs[client_order[company_cid]] = company_outputs
+        gbl_model_inputs[client_order[brand_cid]] = brand_outputs
+        gbl_model_inputs[client_order[category_cid]] = category_outputs
+
+        gbl_model_inputs = torch.cat(gbl_model_inputs,dim=1)
 
         gbl_model_outputs = global_model(gbl_model_inputs)
 
