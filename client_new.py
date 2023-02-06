@@ -145,6 +145,7 @@ if __name__ == "__main__":
     # train_dataloader = data['data']['train'][int(args.cid)]
     # test_dataloader = data['data']['test'][int(args.cid)]
     
+    # cid maps to one of 'brand','company','category'
     ci = ClientIdentifier()
     client_type = ci.get_client_from_cid(cid=cid)
     train_dataloader = data['data'][client_type]['train']
