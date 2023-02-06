@@ -24,14 +24,17 @@ if __name__ == "__main__":
     parser.add_argument("-bs","--batchsize",type=int)
     parser.add_argument("-clrs","--clientlrs",nargs='+',type=float)
     parser.add_argument("-nr","--numrounds",type=int)
+    parser.add_argument("-s","--scheduler")
 
     args       = parser.parse_args()
     gblr       = args.globallr 
     bs         = args.batchsize 
     clrs       = args.clientlrs
     num_rounds = args.numrounds
+    scheduler  = args.scheduler
+    
 
-    test_data = pd.read_csv("../data/tmp_test_data.csv")
+    test_data = pd.read_csv("../change_data/tmp_test_data.csv")
 
     comp_cols, brand_cols, cat_cols = [],[],[]
     for i,col in enumerate(test_data.columns):
@@ -98,7 +101,7 @@ if __name__ == "__main__":
     df = pd.DataFrame(data={"id": ids, "repeatProbability": preds.squeeze()})
 
     clrs_string = ''.join(str(lr) for lr in clrs)
-    df.to_csv(f'./eval/evaltest_co_{client_outputs}_gblr_{gblr}_bs_{bs}_clrs_{clrs_string}_nr_{num_rounds}_csmo_{client_sigmoid_output}.csv',index=False)
+    df.to_csv(f'./eval/evaltest_co_{client_outputs}_gblr_{gblr}_bs_{bs}_clrs_{clrs_string}_nr_{num_rounds}_csmo_{client_sigmoid_output}_sched_{scheduler}_nd_1.csv',index=False)
 
 
 
