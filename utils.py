@@ -103,7 +103,10 @@ def load_datasets(data_path,batch_size):
     train_comp_dl, test_comp_dl = create_train_test(df, cols=comp_cols,  train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
-
+    assert (
+        train_comp_dl.dataset.X.shape[0] == train_cat_dl.dataset.X.shape[0] ==  train_brand_dl.dataset.X.shape[0] == train_labels.dataset.X.shape[0] and 
+        test_comp_dl.dataset.X.shape[0] == test_cat_dl.dataset.X.shape[0] ==  test_brand_dl.dataset.X.shape[0] == test_labels.dataset.X.shape[0]
+    )
     rval = {
         'data': {
             'company': {'train': train_comp_dl, 'test': test_comp_dl},
