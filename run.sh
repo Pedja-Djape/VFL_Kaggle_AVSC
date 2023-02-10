@@ -14,17 +14,12 @@ GBL_LR='1e-2'
 CLIENT_LRS=('1e-6' '1e-6' '1e-6')
 
 echo "Starting server"
-python3 server_new.py -bs $BATCH_SIZE -n $NUM_CLIENTS -do $DATA_OUTPUT -nr $NUM_ROUNDS -f $TRAIN_DATA -gblr $GBL_LR &
+python3 Server.py -bs $BATCH_SIZE -n $NUM_CLIENTS -do $DATA_OUTPUT -nr $NUM_ROUNDS -f $TRAIN_DATA -gblr $GBL_LR &
 sleep 3  # Sleep for 3s to give the server enough time to start
 
-# Start clients with given IDs
-# for i in ${!CLIENT_LRS[@]}; do
-#     echo "Starting client $i"
-#     (python3 client_new.py ${i} -d $DATA_OUTPUT -lr ${CLIENT_LRS[$i]}) &
-# done
 for i in `seq 0 1 2`; do
     echo "Starting client $i"
-    python3 client_new.py ${i} -d $DATA_OUTPUT -lr ${CLIENT_LRS[$i]} &
+    python3 Client.py ${i} -d $DATA_OUTPUT -lr ${CLIENT_LRS[$i]} &
 done
 
 
