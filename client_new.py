@@ -156,7 +156,7 @@ if __name__ == "__main__":
     # fix model with size 6 output dimensions
     model = model.Net(train_dataloader.dataset.X.shape[-1], 6)
 
-    # Create Client with lr 1e-7
+
     Client = FlowerClient(
         cid=str(args.cid), 
         net = model, 
