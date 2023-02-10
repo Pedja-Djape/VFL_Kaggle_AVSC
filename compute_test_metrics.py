@@ -29,7 +29,7 @@ def get_client_input_dim(data_dict, cid, ci):
 # get all client datasets, models, and targets
 def get_client_info(num_clients, infile, ci):
 
-    # load data saved earlier (in server_new.py)
+    # load data saved earlier (in Server.py)
     with open(infile,'rb') as f:
         data = load(f)
     # get labels
