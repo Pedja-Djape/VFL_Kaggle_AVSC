@@ -29,7 +29,7 @@ def get_client_input_dim(data_dict, cid, ci):
 # get all client datasets, models, and targets
 def get_client_info(num_clients, infile, ci):
 
-    # load data saved earlier (in server_new.py)
+    # load data saved earlier (in Server.py)
     with open(infile,'rb') as f:
         data = load(f)
     # get labels
@@ -49,11 +49,20 @@ def get_client_info(num_clients, infile, ci):
     ]
     return client_data, client_models, labels
 
+def get_client_order(cids):
+    rval = {}
+    for cid in cids:
+        with open(f"./models/model_{cid}_info.pt","rb") as f:
+            d = load(f)
+            rval[cid] = d['order']
+
+    return rval
+
 
 def main(num_clients, infile):
 
     ci = ClientIdentifier()
-    
+
     client_data, client_models, labels_dl = get_client_info(num_clients, infile, ci=ci)
 
     labels = iter(labels_dl)
@@ -65,6 +74,9 @@ def main(num_clients, infile):
     criterion = torch.nn.BCELoss()
     
     pred_scores = []
+    
+    client_order = get_client_order(cids=[0,1,2])
+
     with torch.no_grad():
         while True:
             try:
@@ -78,8 +90,13 @@ def main(num_clients, infile):
                 Client0Embeddings = client_models[0](Client0Inputs).detach()
                 Client1Embeddings = client_models[1](Client1Inputs).detach()
                 Client2Embeddings = client_models[2](Client2Inputs).detach()
+
+                input_tensor = [None for i in range(3)]
+                input_tensor[client_order[0]] = Client0Embeddings
+                input_tensor[client_order[1]] = Client1Embeddings
+                input_tensor[client_order[2]] = Client2Embeddings
                 # create input to global model
-                gbl_mdl_inputs = torch.cat([Client0Embeddings, Client1Embeddings, Client2Embeddings], dim = 1 )
+                gbl_mdl_inputs = torch.cat(input_tensor, dim = 1 )
                 # get outputs
                 gbl_mdl_outputs = global_model(gbl_mdl_inputs)
                 

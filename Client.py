@@ -137,14 +137,13 @@ if __name__ == "__main__":
     infile = args.datafile
     cid    = args.cid
     lr     = args.learningrate
+    output_dim = 6
 
     # obtain training data from file saved by server
     with open(infile,'rb') as f:
         data = pickle.load(f)
-    # Get train and test data
-    # train_dataloader = data['data']['train'][int(args.cid)]
-    # test_dataloader = data['data']['test'][int(args.cid)]
     
+    # cid maps to one of 'brand','company','category'
     ci = ClientIdentifier()
     client_type = ci.get_client_from_cid(cid=cid)
     train_dataloader = data['data'][client_type]['train']
@@ -153,16 +152,23 @@ if __name__ == "__main__":
     # set seed for consitency
     torch.manual_seed(0)
     # fix model with size 6 output dimensions
-    model = model.Net(train_dataloader.dataset.X.shape[-1], 6)
+    
+    model = model.Net(
+        train_dataloader.dataset.X.shape[-1], 
+        output_dim=output_dim
+    )
 
-    # Create Client with lr 1e-7
     Client = FlowerClient(
         cid=str(args.cid), 
         net = model, 
         trainloader=train_dataloader, 
         testloader=test_dataloader, 
-        optimizer = Adam(model.parameters(), lr=lr)
+        optimizer = Adam(
+            params=model.parameters(), 
+            lr=lr
+        )
     )
+
     # start client and connect to server
     fl.client.start_numpy_client(
         server_address="127.0.0.1:8080",
@@ -173,5 +179,17 @@ if __name__ == "__main__":
     client_model = Client.get_model()
     torch.save(client_model,f'./models/model_{args.cid}.pt')
 
-    print(f"Client with cid `{args.cid}` has order `{Client.get_order()}`")
+    info = {
+        'cid': args.cid,
+        'order': Client.get_order(),
+        'hps': {
+            'output_dim': output_dim,
+            'lr': lr,
+            'output_activation': 'sig',
+            'optim_type': 'adam'
+        }
+    }
+    with open(f"./models/model_{args.cid}_info.pt",'wb') as f:
+        pi.dump(info, f)
+    
 

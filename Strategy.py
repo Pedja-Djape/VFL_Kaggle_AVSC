@@ -27,7 +27,7 @@ from torch.nn import BCELoss
 import torch
 
 from pickle import dump,loads
-accs = []
+
 
 torch.manual_seed(0)
 def get_parameters(net) -> List[np.ndarray]:
