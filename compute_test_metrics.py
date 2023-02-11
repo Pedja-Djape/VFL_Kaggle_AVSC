@@ -53,14 +53,16 @@ def get_client_order(cids):
     rval = {}
     for cid in cids:
         with open(f"./models/model_{cid}_info.pt","rb") as f:
-            rval[cid] = load(f)['order']
+            d = load(f)
+            rval[cid] = d['order']
+
     return rval
 
 
 def main(num_clients, infile):
 
     ci = ClientIdentifier()
-    
+
     client_data, client_models, labels_dl = get_client_info(num_clients, infile, ci=ci)
 
     labels = iter(labels_dl)
