@@ -4,15 +4,25 @@ from torch.utils.data import DataLoader
 from model import Net
 import torch
 from pickle import load
+import json
 import argparse
 
-# load a given model from it's picked form
-def load_model(dim_input, dim_output, cid=None):
-    model = Net(dim_input,dim_output)
-    if cid is None:
-        model.load_state_dict(torch.load("./models/global_model.pt"))
-    else:
-        model.load_state_dict(torch.load(f"./models/model_{cid}.pt"))
+def get_trained_model(client_type,ci,global_dim=None):
+    # load model definitions file 
+    mdl_def = None
+    with open('./model_definitions.json','r') as f:
+        mdl_def = json.load(fp=f)[client_type]
+
+    input_dim = global_dim if (global_dim != None and client_type == 'global') else mdl_def['input_dim']
+
+    # get hidden layer dimensions (assuming same height)
+    hidden_layer_dim = (input_dim + mdl_def['output_dim']) // 2
+    # create layer list and load model.
+    layers = [input_dim] + [hidden_layer_dim for i in range(mdl_def['hidden'])] + [mdl_def['output_dim']]
+    model = Net(layers)
+    name = "global_model" if client_type == 'global' else f"model_{ci.get_cid_from_client(client_type)}"
+    model.load_state_dict(torch.load(f=f'./models/{name}.pt'))
+    # set model for evaluation stage
     model.eval()
     return model
 
@@ -30,17 +40,13 @@ def get_client_hps(cid):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-gblr","--globallr",type=float)
     parser.add_argument("-bs","--batchsize",type=int)
-    parser.add_argument("-clrs","--clientlrs",nargs='+',type=float)
     parser.add_argument("-nr","--numrounds",type=int)
     parser.add_argument("-s","--scheduler")
 
     args       = parser.parse_args()
 
-    gblr       = args.globallr 
     bs         = args.batchsize 
-    clrs       = args.clientlrs
     num_rounds = args.numrounds
     scheduler  = args.scheduler
     
@@ -49,17 +55,13 @@ if __name__ == "__main__":
 
     comp_cols, brand_cols, cat_cols = [],[],[]
     for i,col in enumerate(test_data.columns):
-        cnt = -1
         if 'brand' in col: 
-            cnt += 1
             brand_cols.append(col)
-        if 'cat' in col:
-            cnt += 1
+        elif 'cat' in col:
             cat_cols.append(col)
-        if 'comp' in col:
-            cnt += 1
+        elif 'comp' in col:
             comp_cols.append(col)
-        if cnt == -1:
+        else:
             comp_cols.append(col)
     
     company_client = test_data[comp_cols].to_numpy()
@@ -87,34 +89,25 @@ if __name__ == "__main__":
     brand_cid = ci.get_cid_from_client(client_type='brand')
     category_cid = ci.get_cid_from_client(client_type='category')
 
-    client_outputs = 6
+    dim = 0
+    with open('model_definitions.json','r') as f:
+        mdl_definitions = json.load(fp=f)
+        for client in mdl_definitions:
+            if client != 'global':
+                dim += mdl_definitions[client]['output_dim']
 
-    company_model_hps  = get_client_hps(company_cid)
-    brand_model_hps    = get_client_hps(brand_cid)
-    category_model_hps = get_client_hps(category_cid)
+    gblr = mdl_definitions['global']['lr']
 
-    company_model = load_model(
-        dim_input=company_client.shape[-1], 
-        dim_output=company_model_hps['output_dim'],
-        cid=company_cid
-    )
+    company_model_hps  = mdl_definitions['company']
+    brand_model_hps    = mdl_definitions['brand']
+    category_model_hps = mdl_definitions['category']
 
-    brand_model =  load_model(
-        dim_input=brand_client.shape[-1], 
-        dim_output=brand_model_hps['output_dim'], 
-        cid = brand_cid
-    )
+    
+    company_model = get_trained_model(client_type='company', ci=ci)
+    brand_model =  get_trained_model(client_type='brand',ci=ci)
+    category_model = get_trained_model(client_type='category', ci=ci)
 
-    category_model = load_model(
-        dim_input=category_client.shape[-1], 
-        dim_output=category_model_hps['output_dim'], 
-        cid = category_cid
-    )
-
-    global_model = load_model(
-        dim_input = category_model_hps['output_dim'] + company_model_hps['output_dim'] + brand_model_hps['output_dim'], 
-        dim_output = 1
-    )
+    global_model = get_trained_model(client_type='global', ci=ci,global_dim=dim)
 
     client_order = get_client_order([company_cid,brand_cid,category_cid])
 
@@ -153,7 +146,7 @@ if __name__ == "__main__":
 
     fed_mdl_name = '__'.join(names)
 
-    df.to_csv(f'{fed_mdl_name}.csv',index=False)
+    df.to_csv(f'./eval/{fed_mdl_name}.csv',index=False)
 
 
 
