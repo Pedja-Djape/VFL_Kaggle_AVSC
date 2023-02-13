@@ -45,7 +45,8 @@ def create_train_test(df,cols, train_index, test_index, batch_size):
         tuple(DataLoader)
             A tuple that includes the train and test DataLoaders. 
     """
-
+    torch.manual_seed(seed=0)
+    
     train_ds = ShoppersDataset(
         df.loc[train_index][cols].copy().to_numpy()
     )
