@@ -21,22 +21,20 @@ if __name__ == "__main__":
     parser.add_argument("-f","--trainfile",type=str)
     
     args = parser.parse_args()
-
-    
-
-    # batch size and number of clients
-    BATCH_SIZE = args.batchsize
     NUM_CLIENTS = args.numclients
-    # number of batches to iterate through
-    NUM_ROUNDS = args.numrounds
     outfile = args.dataoutput
     infile = args.trainfile
-    # lr = args.globallr 
+    
+    with open('model_definitions.json','r') as f:
+        model_definitions = json.load(f)
+    
+    # number of batches to iterate through
+    NUM_ROUNDS = model_definitions['global']['num_rounds']
+    BATCH_SIZE = model_definitions['global']['batch_size']
+
     # get data and save
     DATA = save_data(data_path=infile, batch_size=BATCH_SIZE,outfile=outfile)
 
-    with open('model_definitions.json','r') as f:
-        model_definitions = json.load(f)
 
     lr = model_definitions['global']['lr']
     input_dim = 0

@@ -24,6 +24,8 @@
         "lr": 1e-09,
         "hidden": 3,
         "output_dim": 1,
-        "optimizer": "adam"
+        "optimizer": "adam",
+        "num_rounds": 1,
+        "batch_size": 32
     }
 }

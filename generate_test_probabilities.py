@@ -40,17 +40,20 @@ def get_client_hps(cid):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-bs","--batchsize",type=int)
-    parser.add_argument("-nr","--numrounds",type=int)
     parser.add_argument("-s","--scheduler")
 
     args       = parser.parse_args()
 
-    bs         = args.batchsize 
-    num_rounds = args.numrounds
     scheduler  = args.scheduler
     
+    mdl_definitions = None
+    with open('model_definitions.json','r') as f:
+        mdl_definitions = json.load(fp=f)
 
+    num_rounds = mdl_definitions['global']['num_rounds']
+    bs         = mdl_definitions['global']['batch_size']
+
+    # get test data
     test_data = pd.read_csv("../change_data/tmp_test_data.csv")
 
     comp_cols, brand_cols, cat_cols = [],[],[]
@@ -90,9 +93,7 @@ if __name__ == "__main__":
     category_cid = ci.get_cid_from_client(client_type='category')
 
     dim = 0
-    with open('model_definitions.json','r') as f:
-        mdl_definitions = json.load(fp=f)
-        for client in mdl_definitions:
+    for client in mdl_definitions:
             if client != 'global':
                 dim += mdl_definitions[client]['output_dim']
 
@@ -146,7 +147,13 @@ if __name__ == "__main__":
 
     fed_mdl_name = '__'.join(names)
 
-    df.to_csv(f'./eval/{fed_mdl_name}.csv',index=False)
+    fname = f'./eval/probs/{fed_mdl_name}.csv'
+    df.to_csv(fname,index=False)
+
+    from csv import writer
+    with open('eval/evaluations_scores.csv','a') as f:
+        writer_object = writer(csvfile=f)
+        writer_object.writerow([fname,fed_mdl_name])
 
 
 
