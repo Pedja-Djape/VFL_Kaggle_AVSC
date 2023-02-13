@@ -36,7 +36,7 @@ def get_parameters(net) -> List[np.ndarray]:
 #1e-3 works best so far
 
 class SplitVFL(Strategy):
-    def __init__(self, num_clients, batch_size, dim_input, train_labels, test_labels, lr=1e-3):
+    def __init__(self, num_clients, batch_size, dim_input, num_hidden_layers, train_labels, test_labels, lr=1e-3):
         """
         Strategy that implements vertical learning via a SplitNN.
         
@@ -60,6 +60,7 @@ class SplitVFL(Strategy):
         self.batch_size = batch_size
         self.num_clients = num_clients
         self.dim_input = dim_input
+        self.num_hidden_layers = num_hidden_layers
         self.lr = lr
         self.criterion = BCELoss()
         
@@ -137,7 +138,9 @@ class SplitVFL(Strategy):
         self, client_manager: ClientManager
         ) -> Optional[Parameters]:
         # Initialize global model parameters
-        global_model = model.Net(n_inputs=self.dim_input, output_dim=1)
+        hidden_layer_dim = (self.dim_input + 1) // 2
+        layer_sizes = [self.dim_input] + [hidden_layer_dim for i in range(self.num_hidden_layers)] + [1]
+        global_model = model.Net(sizes=layer_sizes)
         ndarrays = get_parameters(net=global_model)
 
         self.model = global_model
