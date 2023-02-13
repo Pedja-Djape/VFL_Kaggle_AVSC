@@ -8,6 +8,7 @@ from flwr.common import parameters_to_ndarrays
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 import pickle as pi
+import json
 
 import time
 
@@ -126,37 +127,47 @@ if __name__ == "__main__":
     import model
     from torch.optim import Adam
 
+    # set seed for consitency
+    torch.manual_seed(0)
+    
     # accept client id arguement from cmd line
     parser = argparse.ArgumentParser()
     parser.add_argument("cid",type=int)
     parser.add_argument("-d","--datafile",type=str)
-    parser.add_argument("-lr","--learningrate",type=float)
     args = parser.parse_args()
 
-    
     infile = args.datafile
     cid    = args.cid
-    lr     = args.learningrate
-    output_dim = 6
+
+    # cid maps to one of 'brand','company','category'
+    ci = ClientIdentifier()
+    client_type = ci.get_client_from_cid(cid=cid)
 
     # obtain training data from file saved by server
     with open(infile,'rb') as f:
         data = pickle.load(f)
     
-    # cid maps to one of 'brand','company','category'
-    ci = ClientIdentifier()
-    client_type = ci.get_client_from_cid(cid=cid)
+    # Get train and test dataloader objects
     train_dataloader = data['data'][client_type]['train']
     test_dataloader  = data['data'][client_type]['test']
 
-    # set seed for consitency
-    torch.manual_seed(0)
-    # fix model with size 6 output dimensions
+    # load client's model defintion
+    client_dict = None
+    with open("model_definitions.json",'r') as f:
+        client_dict = json.load(f)[client_type]
     
-    model = model.Net(
-        train_dataloader.dataset.X.shape[-1], 
-        output_dim=output_dim
-    )
+
+    # learning rate
+    lr     = client_dict['lr']
+    output_dim = client_dict['output_dim']
+    num_hidden_layers = client_dict['hidden']
+    input_dim = client_dict['input_dim']
+
+   
+    # # fix model with size 6 output dimensions
+    hidden_layer_dim = (input_dim + output_dim) // 2
+    layers = [input_dim] + [hidden_layer_dim for i in range(num_hidden_layers)] + [output_dim]
+    model = model.Net(layers)
 
     Client = FlowerClient(
         cid=str(args.cid), 
@@ -169,13 +180,13 @@ if __name__ == "__main__":
         )
     )
 
-    # start client and connect to server
+    # # start client and connect to server
     fl.client.start_numpy_client(
         server_address="127.0.0.1:8080",
         client=Client
     )
 
-    # Save model for testing purposes after training. 
+    # Get model's state dict and save for testing purposes after training. 
     client_model = Client.get_model()
     torch.save(client_model,f'./models/model_{args.cid}.pt')
 
