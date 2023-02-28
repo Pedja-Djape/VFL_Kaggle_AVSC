@@ -42,6 +42,8 @@ if __name__ == "__main__":
         if mdl != 'global':
             input_dim += model_definitions[mdl]['output_dim']
 
+    scheduler_specs = model_definitions['global']['scheduler']
+    
     # create strategy
     CustomStrategy = stgy.SplitVFL(
         num_clients=NUM_CLIENTS, 
@@ -50,6 +52,7 @@ if __name__ == "__main__":
         num_hidden_layers=model_definitions['global']['hidden'],
         train_labels = DATA['train_labels'],
         test_labels=DATA['test_labels'],
+        scheduler_specs=scheduler_specs
     )
     # start server
     fl.server.start_server(
