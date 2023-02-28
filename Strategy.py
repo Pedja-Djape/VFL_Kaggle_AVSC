@@ -36,7 +36,7 @@ def get_parameters(net) -> List[np.ndarray]:
 #1e-3 works best so far
 
 class SplitVFL(Strategy):
-    def __init__(self, num_clients, batch_size, dim_input, num_hidden_layers, train_labels, test_labels, lr=1e-3):
+    def __init__(self, num_clients, batch_size, dim_input, num_hidden_layers, train_labels, test_labels, scheduler_specs, lr=1e-3):
         """
         Strategy that implements vertical learning via a SplitNN.
         
@@ -87,10 +87,13 @@ class SplitVFL(Strategy):
         self.train_f1 = []
         self.train_f1_accum = 0
 
+        self.scheduler_specs = scheduler_specs
+
         self.model = None
         self.client_tensors = None
         self.clients_map = None
         self.optim = None
+        
         self.scheduler = None
 
         # Maps client id (cid) to its order in global model input
@@ -116,20 +119,33 @@ class SplitVFL(Strategy):
             try:
                 X = next(self.test_label_iter)
             except StopIteration: # if completed entire test set --> eval model metrics
+                metric = self.scheduler_specs['metric']
                 self.test_label_iter = iter(self.test_label_loader)
                 X = next(self.test_label_iter)
                 self.test_acc.append(self.test_correct / len(self.test_label_loader.dataset.X))
                 self.test_f1.append(self.test_f1_accum / self.num_test_batches)
+                if self.scheduler_specs['on'] == "test":
+                    if metric == "f1":
+                        self.scheduler.step(self.test_f1[-1])
+                    elif metric == "accuracy":
+                        self.scheduler.step(self.test_acc[-1])
                 self.test_correct = 0
                 self.test_f1_accum = 0
         else:
             try:
                 X = next(self.train_label_iter)
             except StopIteration: # if completed entire train set --> eval model metrics
+                metric = self.scheduler_specs['metric']
                 self.train_label_iter = iter(self.train_label_loader)
                 X = next(self.train_label_iter)
                 self.train_acc.append(self.train_correct / len(self.train_label_loader.dataset.X))
                 self.train_f1.append(self.train_f1_accum / self.num_train_batches)
+                if self.scheduler_specs['on'] == "train":
+                    if metric == "f1":
+                        self.scheduler.step(self.train_f1[-1])
+                    elif metric == "accuracy":
+                        self.scheduler.step(self.train_f1[-1])
+                self.scheduler.step(self.train_f1[-1])
                 self.train_correct = 0
                 self.train_f1_accum = 0
         return X
@@ -146,7 +162,10 @@ class SplitVFL(Strategy):
         self.model = global_model
         self.optim = optim.Adam(self.model.parameters(),lr=self.lr)
         self.criterion = BCELoss()
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optim,mode='max')
+
+        scheduler_type = self.scheduler_specs['type']
+        if scheduler_type == "OnPlateau":
+            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optim,mode=self.scheduler_specs['mode'])
         # return global model to clients ***not needed in VFL***
         return ndarrays_to_parameters(ndarrays)
     
