@@ -4,6 +4,7 @@ import torch
 import pandas as pd
 import numpy as np 
 from pickle import dump
+import json
 
 
 class ShoppersDataset(Dataset):
@@ -44,7 +45,8 @@ def create_train_test(df,cols, train_index, test_index, batch_size):
         tuple(DataLoader)
             A tuple that includes the train and test DataLoaders. 
     """
-
+    torch.manual_seed(seed=0)
+    
     train_ds = ShoppersDataset(
         df.loc[train_index][cols].copy().to_numpy()
     )
@@ -85,28 +87,52 @@ def load_datasets(data_path,batch_size):
     # Split's data into three types of clients: brand-,category-, and company-based.
     comp_cols, brand_cols, cat_cols = [],[],[]
     for i,col in enumerate(df.columns):
-        cnt = -1
         if 'brand' in col: 
-            cnt += 1
             brand_cols.append(col)
-        if 'cat' in col:
-            cnt += 1
+        elif 'cat' in col:
             cat_cols.append(col)
-        if 'comp' in col:
-            cnt += 1
+        elif 'comp' in col:
             comp_cols.append(col)
-        if cnt == -1:
+        else:
             comp_cols.append(col)
-    
-    
+
     # create dataloaders for each client
     train_comp_dl, test_comp_dl = create_train_test(df, cols=comp_cols,  train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_cat_dl, test_cat_dl = create_train_test(  df, cols=cat_cols,   train_index=train_index, test_index=test_index, batch_size=batch_size)
     train_brand_dl, test_brand_dl = create_train_test( df, cols=brand_cols, train_index=train_index, test_index=test_index, batch_size=batch_size)
+
+    train_comp_shape = train_comp_dl.dataset.X.shape
+    test_comp_shape = test_comp_dl.dataset.X.shape
+
+    train_brand_shape = train_brand_dl.dataset.X.shape
+    test_brand_shape = test_brand_dl.dataset.X.shape 
+
+    train_cat_shape = train_cat_dl.dataset.X.shape
+    test_cat_shape = test_cat_dl.dataset.X.shape
+
+
     assert (
-        train_comp_dl.dataset.X.shape[0] == train_cat_dl.dataset.X.shape[0] ==  train_brand_dl.dataset.X.shape[0] == train_labels.dataset.X.shape[0] and 
-        test_comp_dl.dataset.X.shape[0] == test_cat_dl.dataset.X.shape[0] ==  test_brand_dl.dataset.X.shape[0] == test_labels.dataset.X.shape[0]
+        train_comp_shape[0] == train_cat_shape[0] ==  train_brand_shape[0] == train_labels.dataset.X.shape[0] and 
+        test_comp_shape[0] == test_cat_shape[0] ==  test_brand_shape[0] == test_labels.dataset.X.shape[0]
     )
+
+    assert (
+        train_comp_shape[1] == test_comp_shape[1] and 
+        train_brand_shape[1] == test_brand_shape[1] and
+        train_cat_shape[1] == test_cat_shape[1]
+    )
+
+    mdl_dfns = None
+    with open('model_definitions.json','r') as f:
+        mdl_dfns = json.load(f)
+    
+    mdl_dfns['company']['input_dim'] = train_comp_shape[1]
+    mdl_dfns['category']['input_dim'] = train_cat_shape[1]
+    mdl_dfns['brand']['input_dim'] = train_brand_shape[1]
+
+    with open('model_definitions.json','w') as f:
+        json.dump(obj=mdl_dfns, fp=f,indent=4)
+
     rval = {
         'data': {
             'company': {'train': train_comp_dl, 'test': test_comp_dl},
@@ -147,29 +173,19 @@ def save_data(data_path,batch_size,outfile):
 class ClientIdentifier:
 
     def __init__(self):
-        self.cid_to_client_map = {
+        self.__cid_to_client_map = {
             0: 'company',
             1: 'category',
             2: 'brand'
         }
-        self.client_to_cid = {
+        self.__client_to_cid = {
             'company': 0,
             'category': 1,
             'brand': 2
         }
     def get_cid_from_client(self,client_type):
-        return self.client_to_cid[client_type]
+        return self.__client_to_cid[client_type]
     
     def get_client_from_cid(self,cid):
-        return self.cid_to_client_map[cid]
+        return self.__cid_to_client_map[cid]
 
-if __name__ == "__main__":
-    pd.set_option('display.max_columns', None)
-    torch.manual_seed(0)
-
-    # set batch size of 32
-    BATCH_SIZE = 32
-    outfile = './data.pt'
-
-    DATA = save_data(data_path='../data/train_data.csv', batch_size=BATCH_SIZE,outfile=outfile)
-    pass

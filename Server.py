@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import flwr as fl
 
 import argparse
+import json
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -18,30 +19,40 @@ if __name__ == "__main__":
     parser.add_argument("-do","--dataoutput",type=str)
     parser.add_argument("-nr","--numrounds",type=int)
     parser.add_argument("-f","--trainfile",type=str)
-    parser.add_argument("-gblr","--globallr",type=float)
     
     args = parser.parse_args()
-
-    
-
-    # batch size and number of clients
-    BATCH_SIZE = args.batchsize
     NUM_CLIENTS = args.numclients
-    # number of batches to iterate through
-    NUM_ROUNDS = args.numrounds
     outfile = args.dataoutput
     infile = args.trainfile
-    lr = args.globallr 
+    
+    with open('model_definitions.json','r') as f:
+        model_definitions = json.load(f)
+    
+    # number of batches to iterate through
+    NUM_ROUNDS = model_definitions['global']['num_rounds']
+    BATCH_SIZE = model_definitions['global']['batch_size']
+
     # get data and save
     DATA = save_data(data_path=infile, batch_size=BATCH_SIZE,outfile=outfile)
 
+
+    lr = model_definitions['global']['lr']
+    input_dim = 0
+    for mdl in model_definitions:
+        if mdl != 'global':
+            input_dim += model_definitions[mdl]['output_dim']
+
+    scheduler_specs = model_definitions['global']['scheduler']
+    
     # create strategy
     CustomStrategy = stgy.SplitVFL(
         num_clients=NUM_CLIENTS, 
         batch_size=BATCH_SIZE, 
-        dim_input= 18, # 6 outputs for three clients
+        dim_input= input_dim, # 6 outputs for three clients
+        num_hidden_layers=model_definitions['global']['hidden'],
         train_labels = DATA['train_labels'],
         test_labels=DATA['test_labels'],
+        scheduler_specs=scheduler_specs
     )
     # start server
     fl.server.start_server(

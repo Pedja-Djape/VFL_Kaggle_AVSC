@@ -5,47 +5,54 @@ from sklearn import metrics
 import matplotlib.pyplot as plt
 import argparse
 from pickle import load
-
-# load a given model from it's picked form
-def load_model(dim_input, dim_output, cid=None):
-    model = Net(dim_input,dim_output)
-    if cid is None:
-        model.load_state_dict(torch.load("./models/global_model.pt"))
-    else:
-        model.load_state_dict(torch.load(f"./models/model_{cid}.pt"))
-    model.eval()
-    return model
+import json
 
 # get a given client's test data
 def load_client_data(data_dict, cid, ci):
     client_type = ci.get_client_from_cid(cid=cid)
     return data_dict['data'][client_type]['test']
 
-# get input dimension of a client model
-def get_client_input_dim(data_dict, cid, ci):
-    client_type = ci.get_client_from_cid(cid=cid)
-    return data_dict['data'][client_type]['test'].dataset.X.shape[-1]
+def get_trained_model(client_type,ci,global_dim=None):
+    # load model definitions file 
+    mdl_def = None
+    with open('./model_definitions.json','r') as f:
+        mdl_def = json.load(fp=f)[client_type]
+
+    input_dim = global_dim if (global_dim != None and client_type == 'global') else mdl_def['input_dim']
+
+    # get hidden layer dimensions (assuming same height)
+    hidden_layer_dim = (input_dim + mdl_def['output_dim']) // 2
+    # create layer list and load model.
+    layers = [input_dim] + [hidden_layer_dim for i in range(mdl_def['hidden'])] + [mdl_def['output_dim']]
+    model = Net(layers)
+    name = "global_model" if client_type == 'global' else f"model_{ci.get_cid_from_client(client_type)}"
+    model.load_state_dict(torch.load(f=f'./models/{name}.pt'))
+    # set model for evaluation stage
+    model.eval()
+    return model
+
 
 # get all client datasets, models, and targets
-def get_client_info(num_clients, infile, ci):
+def get_client_info(cids, infile, ci):
 
     # load data saved earlier (in Server.py)
     with open(infile,'rb') as f:
         data = load(f)
+
     # get labels
     labels = data['test_labels']
 
-    # get client_data, clients loaded in order of increasing cid 
+    # get client_data, clients loaded in order of cids given
     client_data = [
-        load_client_data(data, i, ci=ci) for i in range(num_clients)
+        load_client_data(data, cid, ci=ci) for cid in cids
     ]
-
+    # get client models
     client_models = [
-        load_model(
-            dim_input = get_client_input_dim(data, i, ci=ci), 
-            dim_output = 6,
-            cid = i
-        ) for i in range(num_clients)
+        get_trained_model(
+            client_type=ci.get_client_from_cid(cid=cid),
+            ci=ci
+        )
+        for cid in cids
     ]
     return client_data, client_models, labels
 
@@ -61,15 +68,23 @@ def get_client_order(cids):
 
 def main(num_clients, infile):
 
-    ci = ClientIdentifier()
+    dim = 0
+    mdl_dfns = None
+    with open('model_definitions.json','r') as f:
+        mdl_dfns = json.load(f)
+        for client in mdl_dfns:
+            if client != 'global':
+                dim += mdl_dfns[client]['output_dim']
 
-    client_data, client_models, labels_dl = get_client_info(num_clients, infile, ci=ci)
+    
+    ci = ClientIdentifier()
+    global_model = get_trained_model('global', ci,global_dim=dim)
+
+    client_data, client_models, labels_dl = get_client_info(cids=[0,1,2], infile=infile, ci=ci)
 
     labels = iter(labels_dl)
 
     client_iters = [iter(dl) for dl in client_data]
-
-    global_model = load_model(dim_input = 6*num_clients, dim_output = 1)
 
     criterion = torch.nn.BCELoss()
     
