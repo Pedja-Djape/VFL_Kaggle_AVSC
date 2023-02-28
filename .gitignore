@@ -1,5 +1,5 @@
 venv/
-eval/ 
+/eval/probs/
 VFL_Code/
 VFL_Code.zip
 
@@ -12,7 +12,7 @@ models/
 *.pdf
 workflow.md
 
-*.csv
+./*.csv
 
 results.txt
 .DS_Store
