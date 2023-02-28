@@ -39,12 +39,6 @@ def get_client_hps(cid):
         return d['hps']
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s","--scheduler")
-
-    args       = parser.parse_args()
-
-    scheduler  = args.scheduler
     
     mdl_definitions = None
     with open('model_definitions.json','r') as f:
@@ -52,7 +46,7 @@ if __name__ == "__main__":
 
     num_rounds = mdl_definitions['global']['num_rounds']
     bs         = mdl_definitions['global']['batch_size']
-
+    scheduler_specs = mdl_definitions['global']['scheduler']
     # get test data
     test_data = pd.read_csv("../change_data/tmp_test_data.csv")
 
@@ -143,7 +137,8 @@ if __name__ == "__main__":
             client_model_name += f'{chps[key]}{delim}'
         names.append(client_model_name)
     
-    names.append(f'{gblr}_{bs}_{num_rounds}_{scheduler}')
+    scheduler_name = "_".join(scheduler_specs[k] for k in sorted(scheduler_specs))
+    names.append(f"{mdl_definitions['global']['hidden']}_{gblr}_{bs}_{num_rounds}_{scheduler_name}")
 
     fed_mdl_name = '__'.join(names)
 
@@ -151,8 +146,8 @@ if __name__ == "__main__":
     df.to_csv(fname,index=False)
 
     from csv import writer
-    with open('eval/evaluations_scores.csv','a') as f:
-        writer_object = writer(csvfile=f)
+    with open('eval/evaluations_scores.csv','a') as fobj:
+        writer_object = writer(fobj)
         writer_object.writerow([fname,fed_mdl_name])
 
 
